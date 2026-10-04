@@ -12,8 +12,10 @@ namespace Tests\Unit;
 
 use Brain\Monkey\Functions;
 use Tests\TestCase;
+use WPMUS\Assets;
 use WPMUS\Plugin;
 use WPMUS\Sync\JobQueue;
+use WPMUS\Sync\SyncEngine;
 
 final class PluginTest extends TestCase {
 
@@ -48,5 +50,28 @@ final class PluginTest extends TestCase {
 		( new Plugin( '/path/to/wpm-user-sync.php' ) )->register();
 
 		$this->assertFalse( has_action( 'plugins_loaded' ) );
+	}
+
+	public function test_init_hooks_the_stylesheet_loader(): void {
+		$plugin = new Plugin( '/path/to/wpm-user-sync.php' );
+
+		$plugin->on_init();
+
+		$this->assertNotFalse( has_action( 'admin_enqueue_scripts', Assets::class . '->enqueue_admin_styles()' ) );
+	}
+
+	public function test_activation_changes_nothing(): void {
+		Functions\expect( 'update_site_option' )->never();
+		Functions\expect( 'add_site_option' )->never();
+
+		( new Plugin( '/path/to/wpm-user-sync.php' ) )->on_activate();
+	}
+
+	public function test_the_last_plugin_built_is_the_instance_and_exposes_its_engine(): void {
+		$plugin = new Plugin( '/path/to/wpm-user-sync.php' );
+
+		$this->assertSame( $plugin, Plugin::instance() );
+		$this->assertInstanceOf( SyncEngine::class, $plugin->engine() );
+		$this->assertSame( $plugin->engine(), Plugin::instance()->engine() );
 	}
 }

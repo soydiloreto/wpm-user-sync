@@ -44,8 +44,9 @@ pull request is opened only when the branch is already clean.
    the template's sections ([`.github/pull_request_template.md`](.github/pull_request_template.md)).
 6. **Run everything:** `make pre-pr REVIEW_ARGS="--title '…' --body-file build/pr.md"`:
    `make check`, `make test-unit-min` (PHP 8.0), `make i18n-check`,
-   `make docs-check`, the integration and end-to-end suites, Plugin Check and
-   the organisation's local review.
+   `make docs-check`, `make coverage` (the unit, integration and end-to-end
+   suites with Xdebug, the single-site check included, failing below the
+   coverage floors), Plugin Check and the organisation's local review.
 7. **Fix what the review found** (`.git/dx-review/findings.md`) and run step 6
    again until it says **Ready for a pull request**.
 8. **Only then push and open the pull request**, and only when the person you

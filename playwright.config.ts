@@ -7,7 +7,7 @@ import { ADMIN_STATE, DEV_URL, SINGLE_URL } from './tests/e2e/support/env';
  * site's dashboard and every trigger, in a real browser.
  *
  * The dev site mounts the repository, so what runs here is the working tree.
- * tests/e2e/mu-plugin/wpmus-e2e.php is mapped into mu-plugins and lets a test
+ * tests/e2e/mu-plugin/ is mapped as mu-plugins: wpmus-e2e.php lets a test
  * turn the plugin's public filters from a network option; WP-CLI (through
  * `npx wp-env run cli`) makes the users and sites a test needs and reads what
  * the plugin did.

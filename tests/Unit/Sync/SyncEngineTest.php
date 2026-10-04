@@ -736,4 +736,140 @@ final class SyncEngineTest extends TestCase {
 
 		$this->engine()->on_role_changed( 5, 'editor', array( 'subscriber' ) );
 	}
+
+	// ---------------------------------------------------------------------
+	// Early returns
+	// ---------------------------------------------------------------------
+
+	public function test_on_new_site_ignores_an_invalid_site_id(): void {
+		$this->config->shouldReceive( 'is_new_site_sync_enabled' )->andReturn( true );
+		$this->sites->shouldNotReceive( 'all_blog_ids' );
+
+		$this->engine()->on_new_site( 0 );
+	}
+
+	public function test_on_new_user_ignores_an_invalid_user_id(): void {
+		$this->config->shouldReceive( 'is_new_user_sync_enabled' )->andReturn( true );
+		$this->sites->shouldNotReceive( 'all_blog_ids' );
+
+		$this->engine()->on_new_user( 0 );
+	}
+
+	public function test_on_new_user_runs_once_per_user_in_a_request(): void {
+		$this->config->shouldReceive( 'is_new_user_sync_enabled' )->andReturn( true );
+		$this->sites->shouldReceive( 'all_blog_ids' )->once()->andReturn( array( 2 ) );
+		$this->users->shouldReceive( 'is_member_of' )->andReturn( false );
+		$this->sites->shouldReceive( 'default_role_for_blog' )->andReturn( 'subscriber' );
+		$this->users->shouldReceive( 'add_to_blog' )->once()->with( 2, 5, 'subscriber' )->andReturn( true );
+
+		$engine = $this->engine();
+		$engine->on_new_user( 5 );
+		$engine->on_new_user( 5 );
+	}
+
+	public function test_a_registration_with_the_toggle_off_is_not_synced_at_shutdown(): void {
+		$this->config->shouldReceive( 'is_new_user_sync_enabled' )->andReturn( false );
+		$this->sites->shouldNotReceive( 'all_blog_ids' );
+
+		$engine = $this->engine();
+		$engine->on_user_registered( 5 );
+		$engine->flush_registered_users();
+	}
+
+	public function test_a_registration_with_an_invalid_user_id_is_ignored(): void {
+		$this->config->shouldNotReceive( 'is_new_user_sync_enabled' );
+
+		$engine = $this->engine();
+		$engine->on_user_registered( 0 );
+		$engine->flush_registered_users();
+	}
+
+	public function test_a_removal_with_an_invalid_id_is_not_recorded(): void {
+		$this->users->shouldNotReceive( 'record_removal' );
+		Functions\expect( 'doing_action' )->never();
+
+		$engine = $this->engine();
+		$engine->on_user_removed_from_blog( 0, 3 );
+		$engine->on_user_removed_from_blog( 5, 0 );
+	}
+
+	public function test_an_activation_with_the_toggle_off_syncs_nothing(): void {
+		$this->config->shouldReceive( 'is_new_user_sync_enabled' )->andReturn( false );
+		$this->sites->shouldNotReceive( 'all_blog_ids' );
+
+		$this->engine()->on_user_activated( 5 );
+	}
+
+	public function test_an_activation_with_an_invalid_user_id_syncs_nothing(): void {
+		$this->config->shouldNotReceive( 'is_new_user_sync_enabled' );
+		$this->sites->shouldNotReceive( 'all_blog_ids' );
+
+		$this->engine()->on_user_activated( 0 );
+	}
+
+	public function test_the_engines_own_writes_do_not_forget_a_removal(): void {
+		// A forced sync adds a removed user back: the add_user_to_blog
+		// hook it fires must not clear anything by itself; the engine
+		// forgets the removal once, after the write.
+		$engine = $this->engine();
+		$this->sites->shouldReceive( 'all_blog_ids' )->andReturn( array( 3 ) );
+		$this->network_users( array( 5 ) );
+		$this->users->shouldReceive( 'is_member_of' )->andReturn( false );
+		$this->users->shouldReceive( 'removed_blog_ids' )->with( 5 )->andReturn( array( 3 ) );
+		$this->sites->shouldReceive( 'default_role_for_blog' )->andReturn( 'subscriber' );
+		$this->users->shouldReceive( 'add_to_blog' )->once()->andReturnUsing(
+			static function ( int $blog_id, int $user_id, string $role ) use ( $engine ): bool {
+				$engine->on_user_added_to_blog( $user_id, $role, $blog_id );
+				return true;
+			}
+		);
+		$this->users->shouldReceive( 'forget_removal' )->once()->with( 5, 3 );
+
+		$this->assertTrue( $engine->sync_all_users_to_all_sites( true ) );
+	}
+
+	public function test_a_sync_with_no_user_site_pairs_finishes_without_writing(): void {
+		$this->sites->shouldReceive( 'all_blog_ids' )->andReturn( array( 1, 2 ) );
+		$this->users->shouldReceive( 'count_network_users' )->andReturn( 0 );
+		$this->users->shouldNotReceive( 'network_user_ids' );
+		$this->queue->shouldNotReceive( 'add' );
+
+		$this->assertTrue( $this->engine()->sync_all_users_to_all_sites() );
+	}
+
+	public function test_a_run_with_an_empty_queue_releases_the_lock_and_schedules_nothing(): void {
+		$this->queue->shouldReceive( 'acquire_lock' )->once()->andReturn( true );
+		$this->queue->shouldReceive( 'first' )->andReturn( null );
+		$this->queue->shouldReceive( 'release_lock' )->once();
+		$this->queue->shouldNotReceive( 'schedule' );
+
+		$this->engine()->process_queue();
+	}
+
+	public function test_a_queued_job_whose_sites_are_gone_is_finished_and_removed(): void {
+		$job = new SyncJob( 'manual', null, array( 9 ), false );
+		$this->sites->shouldReceive( 'all_blog_ids' )->andReturn( array( 1, 2 ) );
+		$this->users->shouldNotReceive( 'network_user_ids' );
+		$this->queue->shouldReceive( 'acquire_lock' )->andReturn( true );
+		$this->queue->shouldReceive( 'first' )->andReturn( $job, null );
+		$this->queue->shouldReceive( 'remove' )->once()->with( $job->id );
+		$this->queue->shouldReceive( 'release_lock' )->once();
+		$this->queue->shouldNotReceive( 'schedule' );
+
+		$this->engine()->process_queue();
+
+		$this->assertTrue( $job->done );
+	}
+
+	public function test_the_lock_is_released_when_a_batch_fails(): void {
+		$job = new SyncJob( 'manual', null, null, false );
+		$this->sites->shouldReceive( 'all_blog_ids' )->andThrow( new \RuntimeException( 'database gone' ) );
+		$this->queue->shouldReceive( 'acquire_lock' )->andReturn( true );
+		$this->queue->shouldReceive( 'first' )->andReturn( $job );
+		$this->queue->shouldReceive( 'release_lock' )->once();
+
+		$this->expectException( \RuntimeException::class );
+
+		$this->engine()->process_queue();
+	}
 }

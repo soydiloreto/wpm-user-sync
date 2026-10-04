@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace WPMUS;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 spl_autoload_register(

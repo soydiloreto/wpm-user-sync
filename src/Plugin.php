@@ -29,7 +29,7 @@ use WPMUS\Sync\SyncEngine;
 use WPMUS\View\Header;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

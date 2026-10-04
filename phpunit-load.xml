@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+    bootstrap="tests/Integration/bootstrap.php"
+    colors="true"
+    convertErrorsToExceptions="true"
+    convertNoticesToExceptions="true"
+    convertWarningsToExceptions="true"
+    failOnRisky="true"
+    cacheResult="false"
+    beStrictAboutOutputDuringTests="false"
+>
+    <!--
+        The load test: the plugin on a big network of the wp-env tests
+        site, with its real limits. It takes minutes, so it is neither in
+        `make coverage` nor in `make pre-pr`. Run it with `make test-load`.
+    -->
+    <testsuites>
+        <testsuite name="load">
+            <directory>tests/Load</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

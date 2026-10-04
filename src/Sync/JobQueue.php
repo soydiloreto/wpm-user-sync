@@ -16,7 +16,7 @@ declare(strict_types=1);
 namespace WPMUS\Sync;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

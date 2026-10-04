@@ -265,6 +265,8 @@ export function sweep(): void {
 				wpmu_delete_blog( (int) $site->blog_id, true );
 			}
 		}
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->signups} WHERE user_login LIKE %s", 'e2ex%' ) );
 		foreach ( get_users( array( 'blog_id' => 0, 'search' => 'e2e*', 'search_columns' => array( 'user_login' ), 'fields' => array( 'ID', 'user_login' ) ) ) as $user ) {
 			if ( 0 === strpos( $user->user_login, '${PREFIX}' ) || 0 === strpos( $user->user_login, 'e2ex' ) ) {
 				revoke_super_admin( (int) $user->ID );

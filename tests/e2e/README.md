@@ -30,7 +30,8 @@ dist` first) and runs only the single-site check.
 | [`support/ui.ts`](support/ui.ts) | The plugin's screens by page slug, their forms, signing in as somebody else. |
 | [`support/screens.ts`](support/screens.ts) | The registry of every screen and tab. The layout spec fails when the menu or a tab strip has one that is not listed. |
 | [`support/layout.ts`](support/layout.ts) | The layout invariants: overlap, overflow, blank boxes, hidden elements still drawn, sideways scroll, at 1600/1280/960/782 px. |
-| [`mu-plugin/wpmus-e2e.php`](mu-plugin/wpmus-e2e.php) | Test-only, mapped into mu-plugins by `.wp-env.json`: turns the plugin's public filters from the network option `wpmus_e2e_knobs` (inline limit, batch size, time limit, excluded sites, replicating administrator), can hold WP-Cron for web requests so a queued sync can be looked at before it moves, and can pause the first background batch so a test changes the queue while a run works on it. |
+| [`mu-plugin/wpmus-e2e.php`](mu-plugin/wpmus-e2e.php) | Test-only; its folder is mapped as mu-plugins by `.wp-env.json` and the Plugin Check environment: turns the plugin's public filters from the network option `wpmus_e2e_knobs` (inline limit, batch size, time limit, excluded sites, replicating administrator), can hold WP-Cron for web requests so a queued sync can be looked at before it moves, and can pause the first background batch so a test changes the queue while a run works on it. |
+| [`mu-plugin/wpmus-coverage.php`](mu-plugin/wpmus-coverage.php) | Test-only: while `make coverage` runs, records the plugin lines each request executes into `build/coverage/e2e/`. Does nothing otherwise. |
 
 Tests act as a person does: the forms, the menus, the buttons. WP-CLI only
 sets a case up and reads the result, and runs WP-Cron's event when a test

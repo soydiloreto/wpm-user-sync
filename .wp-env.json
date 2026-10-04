@@ -4,7 +4,7 @@
   "phpVersion": "8.5",
   "plugins": ["."],
   "mappings": {
-    "wp-content/mu-plugins/wpmus-e2e.php": "./tests/e2e/mu-plugin/wpmus-e2e.php"
+    "wp-content/mu-plugins": "./tests/e2e/mu-plugin"
   },
   "config": {
     "WP_DEBUG": true,

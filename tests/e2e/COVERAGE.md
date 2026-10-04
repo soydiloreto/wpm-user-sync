@@ -4,7 +4,8 @@ Every feature and state of the plugin and the test that walks it, at each
 layer: **unit** (`tests/Unit`, no WordPress), **integration** (`tests/Integration`,
 a real network in wp-env) and **end-to-end** (`tests/e2e`, a browser on the dev
 network; `single/` on a single site). A new feature or state adds its row in
-the same pull request.
+the same pull request. How many of the plugin's lines each layer runs is
+`make coverage` ([testing-and-quality.md](../../docs/testing-and-quality.md#coverage)).
 
 ## Triggers
 
@@ -13,6 +14,7 @@ the same pull request.
 | New user, on: joins every live site with each site's default role | `triggers` › New User › on: a user added in Network Admin… | `SyncEngineIntegrationTest`, `HooksIntegrationTest` | `SyncEngineTest` |
 | New user, off: joins no site | `triggers` › New User › off | `SyncEngineIntegrationTest` | `SyncEngineTest` |
 | New user made with `wp_insert_user()` alone (another plugin), once per account | `triggers` › …with wp_insert_user() alone | `HooksIntegrationTest` | `SyncEngineTest` |
+| Self-registration: a visitor signs up from a site's "Register" link and activates from the email; on, every live site; off, none | `triggers` › …for someone who signs up on their own (on and off) | `TriggerStatesIntegrationTest` | `SyncEngineTest` |
 | Invitee activated from a signup is synced again | — | `TriggerStatesIntegrationTest` | `SyncEngineTest` |
 | New site, on: every user with the new site's default role | `triggers` › New Site › on | `NewSiteRoleIntegrationTest` | `SyncEngineTest` |
 | New site never copies main-site roles | `triggers` › …the main site's editors… | `NewSiteRoleIntegrationTest` | `SyncEngineTest` |
@@ -42,14 +44,15 @@ the same pull request.
 
 | Feature / state | End-to-end | Integration | Unit |
 |---|---|---|---|
-| Menu: home, options, actions; home tabs; unknown tab falls back | `network-admin` › The network menu | — | — |
+| Menu: home, options, actions; home tabs; unknown tab falls back | `network-admin` › The network menu | `AdminMenusIntegrationTest` | `NetworkMenuTest`, `NetworkHomePageTest` |
 | Options: each toggle saves on and off and reads back; notice | `network-admin` › Network Sync Options | `ConfigPersistenceTest`, `AdminScreensIntegrationTest` | `ConfigTest` |
-| Options: a save without the nonce is refused | `network-admin` › …without the form nonce… | — | — |
+| Options: a save without the nonce is refused | `network-admin` › …without the form nonce… | `AdminHandlersIntegrationTest` | `NetworkSyncOptionsPageTest` |
 | Sync from scratch: every user, every live site, each default role | `network-admin` › "Sync from scratch"… | `NetworkSyncActionsIntegrationTest`, `SyncEngineIntegrationTest` | `SyncEngineTest` |
 | Sync specific sites: only the ticked ones; none ticked warns | `network-admin` › "Sync specific sites"… (two tests) | `NetworkSyncActionsIntegrationTest`, `AdminScreensIntegrationTest` | — |
 | The site list offers live sites only | `network-admin` › the site list… | `AdminScreensIntegrationTest` | `SiteRepositoryTest` |
-| Actions refused without the nonce | `network-admin` › the actions are refused… | — | — |
-| Notices only on the plugin's screens | `network-admin` (every save and sync checks its notice) | `AdminScreensIntegrationTest` | — |
+| Actions refused without the nonce | `network-admin` › the actions are refused… | `AdminHandlersIntegrationTest` | `NetworkSyncActionsPageTest` |
+| Options and network syncs refused (403) to anyone without the network capability, even with a valid nonce | — (Network Admin itself turns them away first: `permissions` › …cannot reach Network Admin's screens) | `AdminHandlersIntegrationTest` | `NetworkSyncOptionsPageTest`, `NetworkSyncActionsPageTest` |
+| Notices only on the plugin's screens | `network-admin` (every save and sync checks its notice) | `AdminScreensIntegrationTest`, `AdminMenusIntegrationTest` | `NoticesTest` |
 
 ## Background syncs
 
@@ -60,20 +63,21 @@ the same pull request.
 | One cron run of one batch moves the progress; the queue drains; nothing left scheduled | `network-admin` › a sync too big… | `QueueIntegrationTest` | `SyncEngineTest` |
 | Real WP-Cron, spawned by visits, finishes a queued sync | `network-admin` › a visit to the site is enough… | — | — |
 | New-site trigger on a big network runs through the queue | `triggers` › …filled in the background… | `QueueIntegrationTest` | `SyncEngineTest` |
-| A run that finds the queue locked leaves a retry for when the lock goes stale; a stale lock is taken over | `network-admin` › a run that died holding the lock… | `QueueIntegrationTest` | `SyncEngineTest` |
-| A job queued while a batch runs is kept; a queue emptied meanwhile stays empty | `triggers` › a site added while a background sync is running… | `QueueIntegrationTest` | — |
+| A run that finds the queue locked leaves a retry for when the lock goes stale; a stale lock is taken over | `network-admin` › a run that died holding the lock… | `QueueIntegrationTest`, `PluginWiringIntegrationTest` | `JobQueueTest`, `SyncEngineTest` |
+| A job queued while a batch runs is kept; a queue emptied meanwhile stays empty | `triggers` › a site added while a background sync is running… | `QueueIntegrationTest` | `JobQueueTest` |
 | A cron run commits its writes in groups of about a second (only there), reading at READ COMMITTED; a group refused, or rolled back behind a successful COMMIT (checked in the database), leaves the batch to a run a minute later with its users read afresh; one by one where the database logs statements; `wpmus_sync_group_writes` turns it off | every background-sync test (grouping is on by default) | `WriteGroupsIntegrationTest` | `WriteGroupsTest`, `SyncEngineTest`, `UserRepositoryTest` |
+| A big network with the real limits: fast start, each run bounded in time and memory, every membership once (`make test-load`) | — | `NetworkLoadTest` (`tests/Load`) | — |
 | `wpmus_sync_inline_limit`, `wpmus_sync_batch_size`, `wpmus_sync_time_limit` | the queued tests above (through the e2e knobs) | `QueueIntegrationTest` | `SyncEngineTest` |
 
 ## A site's dashboard and permissions
 
 | Feature / state | End-to-end | Integration | Unit |
 |---|---|---|---|
-| Super admin: site menu, home tabs | `permissions` › …sees the site menu… | — | — |
-| Site "Sync from scratch": that site only, its default role | `permissions` › "Sync from scratch" fills that site… | `SiteSyncCapabilityIntegrationTest` | — |
-| Site administrator: no menu, site screens refused | `permissions` › …has no plugin menu… | `SiteSyncCapabilityIntegrationTest` | — |
-| Site administrator: Network Admin screens unreachable | `permissions` › …cannot reach Network Admin's screens | — | — |
-| Site administrator: the action refused even when posted directly | `permissions` › …cannot run the site sync… | `SiteSyncCapabilityIntegrationTest` | — |
+| Super admin: site menu, home tabs | `permissions` › …sees the site menu… | `AdminMenusIntegrationTest` | `SiteMenuTest`, `SiteHomePageTest` |
+| Site "Sync from scratch": that site only, its default role | `permissions` › "Sync from scratch" fills that site… | `SiteSyncCapabilityIntegrationTest` | `SiteSyncActionsPageTest` |
+| Site administrator: no menu, site screens refused | `permissions` › …has no plugin menu… | `SiteSyncCapabilityIntegrationTest`, `AdminMenusIntegrationTest` | `SiteMenuTest` |
+| Site administrator: Network Admin screens unreachable | `permissions` › …cannot reach Network Admin's screens | `AdminMenusIntegrationTest` | `NetworkMenuTest` |
+| Site administrator: the action refused even when posted directly | `permissions` › …cannot run the site sync… | `SiteSyncCapabilityIntegrationTest` | `SiteSyncActionsPageTest` |
 
 ## Lifecycle
 
@@ -81,12 +85,12 @@ the same pull request.
 |---|---|---|---|
 | Single site: activating explains and deactivates | `single/single-site` › activating it explains… | — | `RequirementsCheckerTest` |
 | Single site: nothing hooked, nothing stored, no menu | `single/single-site` › while it was active it hooked nothing… | — | `PluginTest` |
-| WordPress older than Requires at least: deactivates and names the version | — | — | `RequirementsCheckerTest` |
-| Network: every trigger, menu and the queue hooked | — | `PluginBootstrapTest` | `PluginTest` |
+| WordPress older than Requires at least: deactivates and names the version | — | `PluginWiringIntegrationTest` | `RequirementsCheckerTest` |
+| Network: every trigger, menu and the queue hooked | — | `PluginBootstrapTest`, `PluginWiringIntegrationTest` | `PluginTest` |
 | Translations left to WordPress (no `load_plugin_textdomain`) | — | `PluginBootstrapTest` | `PluginTest` |
-| Stylesheet only on the plugin's screens, versioned by `WPMUS_VERSION` | — | — | `AssetsTest` |
-| Uninstall: settings, queue, cron event, removal record gone; memberships kept | `uninstall` | `UninstallIntegrationTest` | — |
-| Deprecated 1.4 function names still dispatch | — | `TriggerStatesIntegrationTest` | — |
+| Stylesheet only on the plugin's screens, versioned by `WPMUS_VERSION` | — | `AdminMenusIntegrationTest` | `AssetsTest` |
+| Uninstall: settings, queue, cron event, removal record gone; memberships kept | `uninstall` | `UninstallIntegrationTest` | `UninstallTest` |
+| Deprecated 1.4 function names still dispatch | `legacy-functions` | `TriggerStatesIntegrationTest`, `PluginWiringIntegrationTest` | `LegacyDeprecatedTest` |
 | Option names unchanged since 1.4 | — | `ConfigPersistenceTest` | `SmokeTest` |
 
 ## How it looks

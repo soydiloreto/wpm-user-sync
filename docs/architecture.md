@@ -74,11 +74,12 @@ no Composer dependencies at runtime.
    run counts, in the database itself, the memberships the batch wrote. When
    any is missing, or a COMMIT is refused (and then rolled back on purpose),
    the run stores nothing, drops those users from the object cache and
-   retries a minute later. After every commit the group's users are dropped
-   from the object cache again: core cleans it before the commit, and a
-   request reading them meanwhile may have cached what was there before; a run that
-   dies drops at most its last group. Either way those memberships are added
-   again, never skipped.
+   retries a minute later, or at the run already pending when there is one.
+   After every commit the group's users are dropped from the object cache
+   again: core cleans it before the commit, and a request reading them
+   meanwhile may have cached what was there before. A run that dies drops at
+   most its last group. Either way those memberships are added again, never
+   skipped.
    Users are read a page of ids at a time; sites are walked in id order, so a
    run that dies loses at most one batch, which the next redoes harmlessly.
    Every change to the queue rereads it from the database first, past the

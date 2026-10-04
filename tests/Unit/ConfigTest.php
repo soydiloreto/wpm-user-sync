@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use Brain\Monkey\Functions;
+use Tests\Stubs\AdminIncludes;
 use Tests\TestCase;
 use WPMUS\Config;
 
@@ -138,5 +139,19 @@ final class ConfigTest extends TestCase {
 			->andReturn( array( 'Name' => 'DiluxOne Multisite User Sync' ) );
 
 		$this->assertSame( '', $this->make_config()->required_wp_version() );
+	}
+
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_plugin_data_loads_the_admin_plugin_api_when_it_is_missing(): void {
+		AdminIncludes::install();
+		$this->assertFalse( function_exists( 'get_plugin_data' ) );
+
+		$data = ( new Config( '/some/absolute/path/wpm-user-sync.php' ) )->plugin_data();
+
+		$this->assertSame( AdminIncludes::NAME, $data['Name'] );
+		$this->assertSame( '/some/absolute/path/wpm-user-sync.php', $data['File'] );
 	}
 }

@@ -108,6 +108,7 @@ final class UserRepositoryTest extends TestCase {
 
 		( new UserRepository() )->forget_removal( 5, 3 );
 	}
+
 	public function test_stored_member_count_reads_the_database_a_chunk_at_a_time(): void {
 		$queries         = array();
 		$GLOBALS['wpdb'] = new class( $queries ) {
@@ -145,5 +146,56 @@ final class UserRepositoryTest extends TestCase {
 		Functions\expect( 'clean_user_cache' )->twice();
 
 		( new UserRepository() )->forget_cached( array( 5, 6, 5 ) );
+	}
+
+	public function test_count_network_users_counts_every_account_loading_one_id_at_most(): void {
+		\WP_User_Query::$total = 1234;
+
+		$this->assertSame( 1234, ( new UserRepository() )->count_network_users() );
+		$this->assertSame(
+			array(
+				'blog_id'     => 0,
+				'fields'      => 'ID',
+				'number'      => 1,
+				'count_total' => true,
+			),
+			\WP_User_Query::$last_query
+		);
+	}
+
+	public function test_blog_ids_of_user_are_the_keys_of_their_sites(): void {
+		Functions\expect( 'get_blogs_of_user' )
+			->once()
+			->with( 5 )
+			->andReturn(
+				array(
+					'1' => (object) array( 'userblog_id' => 1 ),
+					4   => (object) array( 'userblog_id' => 4 ),
+				)
+			);
+
+		$this->assertSame( array( 1, 4 ), ( new UserRepository() )->blog_ids_of_user( 5 ) );
+	}
+
+	public function test_is_member_of_coerces_falsy_to_false(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( 0 );
+
+		$this->assertFalse( ( new UserRepository() )->is_member_of( 5, 7 ) );
+	}
+
+	public function test_forget_removal_of_a_site_not_recorded_writes_nothing(): void {
+		Functions\when( 'get_user_meta' )->justReturn( array( 2 ) );
+		Functions\expect( 'update_user_meta' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
+
+		( new UserRepository() )->forget_removal( 5, 3 );
+	}
+
+	public function test_forget_removal_keeps_the_other_sites_recorded(): void {
+		Functions\when( 'get_user_meta' )->justReturn( array( 2, 3, 4 ) );
+		Functions\expect( 'update_user_meta' )->once()->with( 5, UserRepository::META_REMOVED_FROM, array( 2, 4 ) );
+		Functions\expect( 'delete_user_meta' )->never();
+
+		( new UserRepository() )->forget_removal( 5, 3 );
 	}
 }

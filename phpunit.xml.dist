@@ -23,6 +23,8 @@
     <coverage processUncoveredFiles="false">
         <include>
             <file>wpm-user-sync.php</file>
+            <file>uninstall.php</file>
+            <file>legacy-deprecated.php</file>
             <directory>src</directory>
         </include>
     </coverage>

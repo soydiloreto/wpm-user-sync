@@ -14,7 +14,7 @@ use WPMUS\Config;
 use WPMUS\Sync\SyncEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**
@@ -72,13 +72,7 @@ final class SiteSyncActionsPage {
 			wp_die( esc_html__( 'You do not have permission to run a site sync.', 'wpm-user-sync' ), '', array( 'response' => 403 ) );
 		}
 
-		$blog_id = (int) get_current_blog_id();
-		if ( $blog_id <= 0 ) {
-			wp_safe_redirect( admin_url( 'admin.php?page=wpmus-sitesyncactions' ) );
-			exit;
-		}
-
-		$finished = $this->engine->sync_all_users_to_sites( array( $blog_id ) );
+		$finished = $this->engine->sync_all_users_to_sites( array( get_current_blog_id() ) );
 
 		wp_safe_redirect(
 			add_query_arg(

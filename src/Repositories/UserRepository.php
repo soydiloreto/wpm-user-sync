@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace WPMUS\Repositories;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

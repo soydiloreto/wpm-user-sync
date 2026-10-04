@@ -203,6 +203,7 @@ test.describe('Network Sync Actions', () => {
 	});
 
 	test('a visit to the site is enough for WP-Cron to finish a queued sync', async ({ page }) => {
+		test.setTimeout(180_000);
 		const site = createSite('by-visits');
 		const person = createUser('by-visits');
 		setKnobs({ inline_limit: 1, batch_size: 1 });
@@ -214,13 +215,16 @@ test.describe('Network Sync Actions', () => {
 		await expect(notice(page)).toHaveClass(/notice-info/);
 
 		// Nobody runs anything by hand: the main site's visits spawn WP-Cron.
+		// A spawn left by an earlier test holds WP-Cron's lock for up to a
+		// minute, so it starts released.
+		php(`switch_to_blog( get_main_site_id() ); delete_transient( 'doing_cron' ); restore_current_blog(); return true;`);
 		await expect
 			.poll(
 				async () => {
 					await page.request.get('/');
 					return queue().length;
 				},
-				{ timeout: 60_000, intervals: [1_000, 2_000, 3_000] }
+				{ timeout: 120_000, intervals: [1_000, 2_000, 3_000] }
 			)
 			.toBe(0);
 		expect(memberships(person.id)[site.id]).toBe('subscriber');

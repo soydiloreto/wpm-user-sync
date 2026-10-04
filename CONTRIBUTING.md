@@ -31,8 +31,9 @@ has the general rules; this one adds what is specific to the plugin.
    leave that line alone ([`docs/release.md`](docs/release.md)).
 3. Run `make pre-pr` (needs `make env`): `make check` (PHPCS, PHPStan, Psalm,
    unit tests), the unit tests on PHP 8.0, the translations check, the docs
-   check, the integration and end-to-end suites, Plugin Check, and the local
-   review (`make review-local`), which checks the branch, the title, the
+   check, `make coverage` (the unit, integration and end-to-end suites, the
+   single-site check included, with their coverage floors), Plugin Check, and
+   the local review (`make review-local`), which checks the branch, the title, the
    commits and, with `REVIEW_ARGS="--body-file build/pr.md"`, the description
    as CI will, and runs the same Claude review through the Claude Code CLI on
    your own account. It clones the organisation's shared scripts from

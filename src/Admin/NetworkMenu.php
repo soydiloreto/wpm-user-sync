@@ -13,7 +13,7 @@ namespace WPMUS\Admin;
 use WPMUS\View\Header;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

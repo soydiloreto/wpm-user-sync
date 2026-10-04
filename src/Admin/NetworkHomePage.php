@@ -18,7 +18,7 @@ declare(strict_types=1);
 namespace WPMUS\Admin;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

@@ -40,7 +40,7 @@ use WPMUS\Repositories\SiteRepository;
 use WPMUS\Repositories\UserRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**
@@ -384,21 +384,23 @@ final class SyncEngine {
 				if ( null === $job ) {
 					break;
 				}
-				$kept          = false;
 				$size          = $this->batch_size();
 				$this->written = $this->groups->begin() ? array() : null;
+				$ended         = false;
+				$written       = null;
 				try {
 					$this->run_batch( $job, $size );
 				} finally {
-					$kept = $this->groups->end();
+					$ended = $this->groups->end();
 					$this->forget_uncommitted();
-					$kept    = $kept && $this->written_is_stored();
 					$written = $this->written;
 					// Whatever happened, nothing later in the request is
 					// part of this group.
 					$this->written = null;
 				}
-				if ( ! $kept ) {
+				// Checked once the batch returned, so a failing check never
+				// hides the batch's own exception.
+				if ( ! $ended || ! $this->is_stored( $written ) ) {
 					// Not all the batch's memberships are stored: the
 					// stored cursor stays before them, their users are
 					// read afresh, and a later run redoes the batch.
@@ -660,12 +662,14 @@ final class SyncEngine {
 	}
 
 	/**
-	 * True when every membership the write group added is in the
-	 * database: a COMMIT that succeeded does not prove it (see
-	 * {@see WriteGroups}). Always true when no group was open.
+	 * True when every membership a write group added is in the database:
+	 * a COMMIT that succeeded does not prove it (see {@see WriteGroups}).
+	 * Always true when no group was open.
+	 *
+	 * @param array<int, int[]>|null $written The group's memberships, by site.
 	 */
-	private function written_is_stored(): bool {
-		foreach ( $this->written ?? array() as $blog_id => $user_ids ) {
+	private function is_stored( ?array $written ): bool {
+		foreach ( $written ?? array() as $blog_id => $user_ids ) {
 			if ( $this->users->stored_member_count( $blog_id, $user_ids ) < count( array_unique( $user_ids ) ) ) {
 				return false;
 			}

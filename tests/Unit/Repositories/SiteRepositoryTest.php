@@ -146,4 +146,10 @@ final class SiteRepositoryTest extends TestCase {
 
 		$this->assertTrue( ( new SiteRepository() )->role_exists_on_blog( 4, 'editor' ) );
 	}
+
+	public function test_current_blog_id_is_the_site_of_the_request(): void {
+		Functions\when( 'get_current_blog_id' )->justReturn( 6 );
+
+		$this->assertSame( 6, ( new SiteRepository() )->current_blog_id() );
+	}
 }

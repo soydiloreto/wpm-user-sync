@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: WPMUS end-to-end knobs
- * Description: Test-only. Lets the end-to-end suite turn the plugin's public filters from a network option, so a browser test can make a sync big enough to queue, exclude a site or allow the administrator role to be copied. Mapped into mu-plugins by .wp-env.json; never shipped (tests/ is in .distignore).
+ * Description: Test-only. Lets the end-to-end suite turn the plugin's public filters from a network option, so a browser test can make a sync big enough to queue, exclude a site or allow the administrator role to be copied. Its folder is mapped as mu-plugins by .wp-env.json and the Plugin Check environment; never shipped (tests/ is in .distignore).
  *
  * @package WPMUS\Tests\E2E
  */

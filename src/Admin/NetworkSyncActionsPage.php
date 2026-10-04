@@ -16,7 +16,7 @@ use WPMUS\Sync\JobQueue;
 use WPMUS\Sync\SyncEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 /**

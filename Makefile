@@ -161,6 +161,17 @@ test-unit-min: ## Unit suite on the oldest PHP the plugin supports (8.0).
 test-integration: ## Run the integration suite on the wp-env tests network (needs `make env`).
 	npx @wordpress/env run tests-cli --env-cwd=wp-content/plugins/$(REPO_DIR) ./vendor/bin/phpunit -c phpunit-integration.xml
 
+# The load test: thousands of users and tens of sites on the tests network,
+# with the plugin's real batch size and time limit. It prints what the request
+# that starts a sync and each background run took, and checks every
+# membership at the end. Minutes, so not part of `pre-pr`.
+LOAD_USERS ?= 3000
+LOAD_SITES ?= 10
+
+.PHONY: test-load
+test-load: ## The load test on the tests network (LOAD_USERS, LOAD_SITES; needs `make env`).
+	npx @wordpress/env run tests-cli --env-cwd=wp-content/plugins/$(REPO_DIR) env LOAD_USERS=$(LOAD_USERS) LOAD_SITES=$(LOAD_SITES) ./vendor/bin/phpunit -c phpunit-load.xml
+
 # The end-to-end suite drives a real browser against the wp-env dev network
 # (8898): network admin, a site's admin, every trigger. It needs `make env`
 # and Playwright's Chromium (`make install`). The single-site check runs after
@@ -266,6 +277,7 @@ pcp-env: dist
 	  '  "core": null,' \
 	  '  "phpVersion": "8.5",' \
 	  '  "plugins": [ "../$(SLUG)" ],' \
+	  '  "mappings": { "wp-content/mu-plugins": "$(CURDIR)/tests/e2e/mu-plugin" },' \
 	  '  "port": $(PCP_PORT),' \
 	  '  "testsPort": $(PCP_TESTS_PORT)' \
 	  '}' > "$(PCP_DIR)/.wp-env.json"
@@ -289,6 +301,56 @@ plugin-check-all: pcp-env ## Plugin Check on the built dist, including warnings 
 .PHONY: plugin-check-down
 plugin-check-down: ## Stop the Plugin Check environment.
 	@[ -f "$(PCP_DIR)/.wp-env.json" ] && cd "$(PCP_DIR)" && npx @wordpress/env stop 2>/dev/null || true
+
+# -- Coverage ----------------------------------------------------------
+# Line coverage of everything that ships (src/, the main file, uninstall.php,
+# legacy-deprecated.php), per layer and all together, on the
+# wp-env network with Xdebug in coverage mode (`make coverage` restarts it that
+# way, and both environments without Xdebug again when it is done). The end-to-end layer is
+# recorded per request by tests/e2e/mu-plugin/wpmus-coverage.php. COVERAGE_MIN is the
+# floor for all layers together, COVERAGE_LAYER_MIN for each layer; below
+# either, `make coverage` fails. See docs/testing-and-quality.md.
+COVERAGE_MIN       ?= 100
+COVERAGE_LAYER_MIN ?= 90
+COVERAGE_SHOW      ?= all
+TESTS_CLI := npx @wordpress/env run tests-cli --env-cwd=wp-content/plugins/$(REPO_DIR)
+
+.PHONY: coverage
+coverage: ## Line coverage of every layer and all together; fails below COVERAGE_MIN / COVERAGE_LAYER_MIN.
+	npx @wordpress/env start --xdebug=coverage
+	@$(MAKE) --no-print-directory coverage-unit coverage-integration coverage-e2e coverage-e2e-single \
+	  && $(MAKE) --no-print-directory coverage-report; status=$$?; \
+	  npx @wordpress/env start >/dev/null; exit $$status
+
+.PHONY: coverage-unit
+coverage-unit: ## Unit suite with line coverage (needs `make env` with Xdebug: see `coverage`).
+	@mkdir -p build/coverage && rm -f build/coverage/unit.cov
+	$(TESTS_CLI) env XDEBUG_MODE=coverage ./vendor/bin/phpunit --testsuite unit --cache-result-file=/tmp/wpmus-unit.cache --coverage-php build/coverage/unit.cov
+
+.PHONY: coverage-integration
+coverage-integration: ## Integration suite with line coverage.
+	@mkdir -p build/coverage && rm -f build/coverage/integration.cov
+	$(TESTS_CLI) env XDEBUG_MODE=coverage ./vendor/bin/phpunit -c phpunit-integration.xml --coverage-filter src --coverage-filter wpm-user-sync.php --coverage-filter uninstall.php --coverage-filter legacy-deprecated.php --coverage-php build/coverage/integration.cov
+
+.PHONY: coverage-e2e
+coverage-e2e: ## End-to-end network suite with line coverage, recorded per request.
+	@rm -rf build/coverage/e2e && mkdir -p build/coverage/e2e && chmod 777 build/coverage/e2e
+	npx playwright test
+
+# The single-site check runs on the Plugin Check environment, where the
+# plugin's folder is the dist: the collector writes into the dist's own
+# build/coverage/e2e, and its files join the network suite's afterwards.
+.PHONY: coverage-e2e-single
+coverage-e2e-single: pcp-env ## The single-site check with line coverage (restarts the Plugin Check environment with Xdebug).
+	@cd "$(PCP_DIR)" && npx @wordpress/env start --xdebug=coverage >/dev/null
+	@rm -rf "$(DIST_DIR)/build" && mkdir -p "$(DIST_DIR)/build/coverage/e2e" build/coverage/e2e && chmod 777 "$(DIST_DIR)/build/coverage/e2e"
+	WPMUS_SINGLE_URL=http://localhost:$(PCP_TESTS_PORT) WPMUS_SINGLE_ENV=$(PCP_DIR) npx playwright test --project=single; status=$$?; \
+	  find "$(DIST_DIR)/build/coverage/e2e" -name '*.json' -exec mv {} build/coverage/e2e/ \; ; rm -rf "$(DIST_DIR)/build"; \
+	  cd "$(PCP_DIR)" && npx @wordpress/env start >/dev/null; exit $$status
+
+.PHONY: coverage-report
+coverage-report: ## The coverage table from build/coverage; COVERAGE_SHOW=unit|integration|e2e lists that layer's missing lines.
+	$(TESTS_CLI) php tests/coverage/report.php $(COVERAGE_MIN) $(COVERAGE_LAYER_MIN) $(COVERAGE_SHOW)
 
 # -- Aggregate ---------------------------------------------------------
 .PHONY: check
@@ -317,8 +379,7 @@ pre-pr: ## Everything a pull request is checked on, one after the other, then th
 	$(MAKE) test-unit-min
 	$(MAKE) i18n-check
 	$(MAKE) docs-check
-	$(MAKE) test-integration
-	$(MAKE) test-e2e
+	$(MAKE) coverage
 	$(MAKE) plugin-check
 	$(MAKE) review-local
 	@echo "✔ Checks passed; the review above says whether the branch is ready for a pull request."

@@ -16,7 +16,7 @@
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
-	exit;
+	exit; // @codeCoverageIgnore
 }
 
 delete_site_option( 'wpmus_newSiteSync' );

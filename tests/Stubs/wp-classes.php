@@ -58,3 +58,28 @@ if ( ! class_exists( 'WP_Site', false ) ) {
 		}
 	}
 }
+
+if ( ! class_exists( 'WP_User_Query', false ) ) {
+	/**
+	 * Stub of the WordPress core class used by
+	 * `UserRepository::count_network_users()`. It records the query it
+	 * was built with and reports the total a test set.
+	 */
+	final class WP_User_Query {
+
+		/** @var array<string,mixed>|null The last query built. */
+		public static ?array $last_query = null;
+
+		/** The total every query reports. */
+		public static int $total = 0;
+
+		/** @param array<string,mixed> $query Query arguments. */
+		public function __construct( array $query = array() ) {
+			self::$last_query = $query;
+		}
+
+		public function get_total(): int {
+			return self::$total;
+		}
+	}
+}

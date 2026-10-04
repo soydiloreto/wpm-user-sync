@@ -58,6 +58,7 @@ test-results
 phpunit.xml
 phpunit.xml.dist
 phpunit-integration.xml
+phpunit-load.xml
 phpunit-integration.xml.dist
 tests
 .phpunit.result.cache

@@ -2,6 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 import { php, wp } from '../support/cli';
 import { DEV_URL } from '../support/env';
 import {
+	Site,
 	batchPaused,
 	clearKnobs,
 	clearQueue,
@@ -21,8 +22,8 @@ import { networkScreen, submit, syncForm } from '../support/ui';
 
 /**
  * The three automatic triggers, each fired the way a person fires it: a user
- * added in Network Admin, a site added in Network Admin, a role changed on a
- * site's Users screen. Each is tested on and off.
+ * added in Network Admin or signing up on their own, a site added in Network
+ * Admin, a role changed on a site's Users screen. Each is tested on and off.
  */
 
 test.afterEach(() => {
@@ -108,6 +109,70 @@ test.describe('New User Automatic Sync', () => {
 		const id = php<number>(`return (int) wp_insert_user( array( 'user_login' => '${login}', 'user_pass' => 'x-${login}', 'user_email' => '${login}@example.com' ) );`);
 
 		expect(memberships(id)[plain.id]).toBe('subscriber');
+	});
+});
+
+test.describe('New User Automatic Sync, for someone who signs up on their own', () => {
+	// Nobody signed in: a visitor of one of the network's sites.
+	test.use({ storageState: { cookies: [], origins: [] } });
+
+	let registration: string;
+
+	test.beforeEach(() => {
+		registration = php<string>(`$was = (string) get_site_option( 'registration', 'none' ); update_site_option( 'registration', 'user' ); return $was;`);
+	});
+
+	test.afterEach(() => {
+		php(`update_site_option( 'registration', ${JSON.stringify(registration)} ); return true;`);
+	});
+
+	/**
+	 * Signs up from a site's own "Register" link (WordPress sends a visitor of
+	 * any site to the network's sign-up form), then opens the activation link
+	 * of the email. Returns the account the activation made.
+	 */
+	async function signUpFrom(page: Page, site: Site, hint: string): Promise<{ id: number; login: string }> {
+		const login = uniqueLogin(hint);
+
+		await page.goto(`${site.url}wp-login.php?action=register`);
+		await expect(page).toHaveURL(/wp-signup\.php/);
+		await page.locator('#user_name').fill(login);
+		await page.locator('#user_email').fill(`${login}@example.com`);
+		await page.locator('#setupform input[type="submit"]').click();
+		await expect(page.locator('#signup-content')).toContainText(login);
+
+		// The link of the activation email, read where WordPress keeps it.
+		const key = php<string>(`global $wpdb; return (string) $wpdb->get_var( $wpdb->prepare( "SELECT activation_key FROM {$wpdb->signups} WHERE user_login = %s", '${login}' ) );`);
+		expect(key, 'a pending sign-up waits for its activation').not.toBe('');
+		await page.goto(`${DEV_URL}/wp-activate.php?key=${key}`);
+		await expect(page.locator('body')).toContainText(login);
+
+		return { id: Number(wp(['user', 'get', login, '--field=ID'])), login };
+	}
+
+	test('on: activating the account joins every live site with each site\'s default role, not just the one signed up from', async ({ page }) => {
+		const from = createSite('su-from');
+		const editors = createSite('su-editors', { defaultRole: 'editor' });
+		const archived = createSite('su-archived', { archived: true });
+		setToggles({ newUser: true });
+
+		const user = await signUpFrom(page, from, 'su-on');
+		const mine = memberships(user.id);
+
+		expect(mine[from.id]).toBe('subscriber');
+		expect(mine[editors.id]).toBe('editor');
+		expect(mine[archived.id], 'archived sites are skipped').toBeUndefined();
+	});
+
+	test('off: the activated account joins no site of the network', async ({ page }) => {
+		const from = createSite('su-off-from');
+		const other = createSite('su-off-other');
+
+		const user = await signUpFrom(page, from, 'su-off');
+		const mine = memberships(user.id);
+
+		expect(mine[from.id]).toBeUndefined();
+		expect(mine[other.id]).toBeUndefined();
 	});
 });
 
